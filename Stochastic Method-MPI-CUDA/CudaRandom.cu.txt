@@ -1,0 +1,39 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <cuda.h>
+#include <curand.h>          //CUDA random number library
+
+const int N=1024;  //Number of threads
+
+//Seed the random number generator (call only once)
+__global__ void setup_kernel ( curandState * state, unsigned long seed )
+{
+    int id = threadIdx.x;
+    curand_init ( seed, id, 0, &state[id] );
+} 
+
+__global__ void generate( curandState* globalState ) 
+{
+    int ind = threadIdx.x;
+    curandState localState = globalState[ind];
+    // curand_uniform gives random number in (0,1) with uniform probability
+    // you could change this call to curand_normal to get normal distribution
+    float RANDOM = curand_uniform( &localState );
+    globalState[ind] = localState; 
+}
+
+int main( int argc, char** argv) 
+{
+    dim3 tpb(N,1,1);
+    curandState* devStates;
+    cudaMalloc ( &devStates, N*sizeof( curandState ) );
+    
+    // setup seeds.  Note the 2nd argument is the seed which
+    // you can set to anything you like 
+    setup_kernel <<< 1, tpb >>> ( devStates, 12345678 );
+
+    // generate random numbers
+    generate <<< 1, tpb >>> ( devStates );
+
+    return 0;
+}
